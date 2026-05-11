@@ -21,7 +21,7 @@ const server = http.createServer((req, res) => {
   // 2. Safe File Path Resolution
   // This prevents the browser from requesting files outside this folder (e.g., /../etc/passwd)
   let safePath = path.normalize(req.url).replace(/^(\.\.[\/\\])+/, "");
-  if (safePath === "/" || safePath === ".") safePath = "index.html";
+  if (safePath === "/" || safePath === ".") safePath = "public/index.html";
 
   const fullPath = path.join(ROOT, safePath);
 

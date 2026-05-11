@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Color Picker</title>
+        <link rel="stylesheet" href="styles.css" />
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <div style="font-weight: bold; font-size: 14px">
+                    Color Picker
+                </div>
+                <button id="theme-toggle">Switch to Night Theme</button>
+            </div>
+
+            <div class="main-ui">
+                <div class="canvas-wrapper">
+                    <canvas id="color-canvas"></canvas>
+                    <div
+                        id="selection-marker"
+                        style="left: 50%; top: 50%"
+                    ></div>
+                </div>
+                <div id="current-color"></div>
+            </div>
+
+            <div class="sliders">
+                <input
+                    type="range"
+                    id="hue-slider"
+                    min="0"
+                    max="360"
+                    value="217"
+                />
+            </div>
+
+            <div class="inputs-grid">
+                <div class="input-group">
+                    <label>Hex</label>
+                    <input
+                        type="text"
+                        id="hex-input"
+                        spellcheck="false"
+                        autocomplete="off"
+                    />
+                </div>
+                <div class="input-group">
+                    <label>RGB</label>
+                    <input
+                        type="text"
+                        id="rgb-input"
+                        spellcheck="false"
+                        autocomplete="off"
+                    />
+                </div>
+                <div class="input-group">
+                    <label>HSL</label>
+                    <input
+                        type="text"
+                        id="hsl-input"
+                        spellcheck="false"
+                        autocomplete="off"
+                    />
+                </div>
+            </div>
+        </div>
+        <script src="script.js"></script>
+    </body>
+</html>

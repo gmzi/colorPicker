@@ -1,0 +1,439 @@
+/* ─── Variables ─────────────────────────────────────────────────────────────── */
+:root {
+    --bg: #16161c;
+    --surface: #1e1e26;
+    --surface-2: #26262f;
+    --surface-3: #2e2e3a;
+    --border: #32323e;
+    --border-hi: #52526a;
+    --text-1: #eeeef5;
+    --text-2: #8888a0;
+    --text-3: #50505f;
+    --accent: #6e6eff;
+    --accent-glow: rgba(110, 110, 255, 0.18);
+    --ok: #3dcf7a;
+    --ok-glow: rgba(61, 207, 122, 0.18);
+    --err: #f06080;
+    --err-glow: rgba(240, 96, 128, 0.18);
+    --r: 10px;
+    --r-sm: 6px;
+    --ease: 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.night-theme {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --surface-2: #18181f;
+    --surface-3: #1e1e28;
+    --border: #22222c;
+    --border-hi: #40404e;
+    --text-2: #606078;
+    --text-3: #38383f;
+}
+
+/* ─── Reset ──────────────────────────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+/* ─── Body ───────────────────────────────────────────────────────────────────── */
+body {
+    background: var(--bg);
+    color: var(--text-1);
+    font-family: "avenir", sans-serif;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* Fluid padding — generous on desktop, tight on mobile */
+    padding: clamp(12px, 4vw, 32px);
+    transition: background var(--ease);
+    /* Prevent rubber-band scroll fighting the canvas touch events */
+    overscroll-behavior: none;
+}
+
+/* ─── Container ─────────────────────────────────────────────────────────────── */
+.container {
+    /* Fluid: fills small screens, caps at 360px on desktop */
+    width: min(30rem, 100%);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    padding: clamp(14px, 4vw, 20px);
+    display: flex;
+    flex-direction: column;
+    gap: clamp(12px, 3vw, 16px);
+    box-shadow:
+        0 32px 80px rgba(0, 0, 0, 0.6),
+        0 1px 0 rgba(255, 255, 255, 0.035) inset;
+    transition:
+        background var(--ease),
+        border-color var(--ease);
+}
+
+/* ─── Header ────────────────────────────────────────────────────────────────── */
+.header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.header > div {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    white-space: nowrap;
+}
+
+#theme-toggle {
+    font-family: "Syne", sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--text-2);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
+    /* 44px min-height for WCAG touch target */
+    min-height: 32px;
+    padding: 0 12px;
+    cursor: pointer;
+    transition: all var(--ease);
+    white-space: nowrap;
+    /* Prevents accidental text selection on double-tap */
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+#theme-toggle:hover {
+    border-color: var(--border-hi);
+    color: var(--text-1);
+    background: var(--surface-3);
+}
+
+#theme-toggle:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+/* ─── Main UI ───────────────────────────────────────────────────────────────── */
+.main-ui {
+    display: flex;
+    gap: 10px;
+    align-items: stretch;
+}
+
+/* ─── Canvas ─────────────────────────────────────────────────────────────────── */
+.canvas-wrapper {
+    flex: 1;
+    position: relative;
+    border-radius: var(--r-sm);
+    overflow: hidden;
+    cursor: crosshair;
+    aspect-ratio: 1;
+    user-select: none;
+    -webkit-user-select: none;
+    /* Prevent touch scroll while dragging inside the canvas */
+    touch-action: none;
+    box-shadow: 0 2px 16px rgba(0, 0, 0, 0.5);
+}
+
+#color-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: var(--r-sm);
+}
+
+/* Keyboard-focus ring on the canvas */
+.canvas-wrapper:focus-within {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+#color-canvas:focus {
+    outline: none;
+}
+
+#selection-marker {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 2.5px solid rgba(255, 255, 255, 0.92);
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    box-shadow:
+        0 0 0 1.5px rgba(0, 0, 0, 0.22),
+        0 2px 8px rgba(0, 0, 0, 0.5);
+    transition:
+        border-color 0.08s linear,
+        box-shadow 0.08s linear,
+        width 0.12s ease,
+        height 0.12s ease;
+}
+
+/* Slightly bigger marker while dragging for better visibility */
+.canvas-wrapper:active #selection-marker {
+    width: 20px;
+    height: 20px;
+}
+
+/* ─── Color Swatch ───────────────────────────────────────────────────────────── */
+#current-color {
+    width: clamp(84px, 15vw, 56px);
+    flex-shrink: 0;
+    border-radius: var(--r-sm);
+    background: #4a78e8;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    transition: background-color 0.05s linear;
+    position: relative;
+    overflow: hidden;
+    cursor: pointer;
+}
+
+/* "Copy" tooltip on hover */
+#current-color::after {
+    content: "Copy";
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: "Syne", sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.9);
+    background: rgba(0, 0, 0, 0.3);
+    opacity: 0;
+    transition: opacity var(--ease);
+    display: grid;
+    place-items: center;
+}
+
+#current-color:hover::after {
+    opacity: 1;
+}
+
+#current-color.copied::after {
+    content: "✓";
+    font-size: 18px;
+    letter-spacing: 0;
+    opacity: 1;
+    background: rgba(0, 0, 0, 0.25);
+    color: var(--ok);
+}
+
+/* ─── Hue Slider ────────────────────────────────────────────────────────────── */
+.sliders {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* Wrapper adds vertical padding so the oversized thumb doesn't clip */
+.sliders {
+    padding: 4px 0;
+}
+
+#hue-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 4rem;
+    border-radius: 7px;
+    outline: none;
+    cursor: pointer;
+    touch-action: pan-x; /* allow only horizontal panning */
+    background: linear-gradient(
+        to right,
+        hsl(0, 100%, 50%),
+        hsl(30, 100%, 50%),
+        hsl(60, 100%, 50%),
+        hsl(90, 100%, 50%),
+        hsl(120, 100%, 50%),
+        hsl(150, 100%, 50%),
+        hsl(180, 100%, 50%),
+        hsl(210, 100%, 50%),
+        hsl(240, 100%, 50%),
+        hsl(270, 100%, 50%),
+        hsl(300, 100%, 50%),
+        hsl(330, 100%, 50%),
+        hsl(360, 100%, 50%)
+    );
+    box-shadow:
+        0 2px 10px rgba(0, 0, 0, 0.4),
+        0 1px 0 rgba(255, 255, 255, 0.04) inset;
+}
+
+/* Shared thumb styles (applied via custom properties for DRY) */
+#hue-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #fff;
+    border: 2.5px solid rgba(0, 0, 0, 0.12);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+    cursor: pointer;
+    transition:
+        transform 0.12s ease,
+        box-shadow 0.12s ease;
+}
+#hue-slider::-webkit-slider-thumb:hover,
+#hue-slider::-webkit-slider-thumb:active {
+    transform: scale(1.18);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55);
+}
+#hue-slider::-moz-range-thumb {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #fff;
+    border: 2.5px solid rgba(0, 0, 0, 0.12);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+    cursor: pointer;
+}
+#hue-slider:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+}
+
+/* ─── Inputs Grid ───────────────────────────────────────────────────────────── */
+.inputs-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: clamp(6px, 2vw, 10px);
+}
+
+.input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 0; /* allow grid children to shrink */
+}
+
+.input-group label {
+    font-family: "Syne", sans-serif;
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    padding-left: 3px;
+    transition: color var(--ease);
+    cursor: default;
+}
+
+.input-group:hover label {
+    color: var(--text-2);
+}
+
+.input-group input {
+    width: 100%;
+    /* 44px min touch target height on mobile */
+    min-height: 36px;
+    background: var(--surface-2);
+    color: var(--text-1);
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
+    padding: 0 6px;
+    font-family: "DM Mono", monospace;
+    /* Fluid font size — readable on mobile, crisp on desktop */
+    font-size: clamp(10px, 2.8vw, 11.5px);
+    font-weight: 400;
+    outline: none;
+    text-align: center;
+    cursor: pointer;
+    /* Prevent iOS auto-zoom on focus (font must be ≥ 16px OR we disable zoom) */
+    font-size: max(16px, clamp(10px, 2.8vw, 11.5px));
+    transition:
+        border-color var(--ease),
+        background var(--ease),
+        box-shadow var(--ease),
+        color var(--ease);
+}
+
+/* Override the double font-size declaration — use 16px on mobile, smaller on desktop */
+@media (min-width: 480px) {
+    .input-group input {
+        font-size: clamp(10px, 2.8vw, 11.5px);
+    }
+}
+
+.input-group input:hover {
+    border-color: var(--border-hi);
+    background: var(--surface-3);
+}
+
+.input-group input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+    background: var(--surface-3);
+    cursor: text;
+}
+
+/* Validation states */
+.input-group input.input-error {
+    border-color: var(--err);
+    box-shadow: 0 0 0 3px var(--err-glow);
+    color: var(--err);
+}
+
+/* Copy flash — applies to all three inputs */
+.input-group input.copied {
+    border-color: var(--ok);
+    box-shadow: 0 0 0 3px var(--ok-glow);
+    color: var(--ok);
+}
+
+/* ─── Narrow screens (≤ 320px) ───────────────────────────────────────────────── */
+@media (max-width: 320px) {
+    .container {
+        padding: 12px;
+        gap: 10px;
+    }
+
+    /* Stack swatch below canvas on very small screens */
+    .main-ui {
+        flex-direction: column;
+    }
+    #current-color {
+        width: 100%;
+        height: 40px;
+        flex-shrink: unset;
+    }
+
+    /* 2-col inputs on really narrow screens */
+    .inputs-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+    /* HSL gets full width */
+    .input-group:last-child {
+        grid-column: 1 / -1;
+    }
+
+    #theme-toggle {
+        font-size: 10px;
+        padding: 0 8px;
+    }
+}
+
+/* ─── Print / reduced-motion ─────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        transition-duration: 0.01ms !important;
+    }
+}

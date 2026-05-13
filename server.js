@@ -3,7 +3,7 @@ const fs = require("fs");
 const path = require("path");
 
 const PORT = 3000;
-const ROOT = process.cwd(); // Strictly limits the server to this folder
+const ROOT = path.join(__dirname, "public");
 let clients = [];
 
 const server = http.createServer((req, res) => {
@@ -21,7 +21,7 @@ const server = http.createServer((req, res) => {
   // 2. Safe File Path Resolution
   // This prevents the browser from requesting files outside this folder (e.g., /../etc/passwd)
   let safePath = path.normalize(req.url).replace(/^(\.\.[\/\\])+/, "");
-  if (safePath === "/" || safePath === ".") safePath = "public/index.html";
+  if (safePath === "/" || safePath === ".") safePath = "index.html";
 
   const fullPath = path.join(ROOT, safePath);
 
@@ -66,7 +66,12 @@ const server = http.createServer((req, res) => {
 // 4. Scoped File Watching
 // We only watch the current directory.
 fs.watch(ROOT, { recursive: true }, (eventType, filename) => {
-  if (filename && (filename.endsWith(".html") || filename.endsWith(".css"))) {
+  if (
+    filename &&
+    (filename.endsWith(".html") ||
+      filename.endsWith(".css") ||
+      filename.endsWith(".js"))
+  ) {
     console.log(`[Changed] ${filename} - Refreshing browser...`);
     clients.forEach((client) => client.write("data: reload\n\n"));
     clients = []; // Reset connection list after trigger

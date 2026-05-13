@@ -93,61 +93,55 @@ function rgbToHex(r, g, b) {
   return "#" + [r, g, b].map((x) => x.toString(16).padStart(2, "0")).join("");
 }
 
-function hexToRgb(hex) {
-  hex = hex.replace(/^#/, "");
-  if (hex.length === 3)
-    hex = hex
-      .split("")
-      .map((c) => c + c)
-      .join("");
-  if (hex.length !== 6 || !/^[0-9a-f]{6}$/i.test(hex)) return null;
-  const n = parseInt(hex, 16);
-  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+// ─── Strict Input Parsers (Validation) ────────────────────────────────────────
+
+function parseHex(str) {
+  const clean = str.trim().replace(/^#/, "");
+  if (/^[0-9a-f]{3}$/i.test(clean)) {
+    return clean.split("").map((c) => parseInt(c + c, 16));
+  }
+  if (/^[0-9a-f]{6}$/i.test(clean)) {
+    return [
+      parseInt(clean.slice(0, 2), 16),
+      parseInt(clean.slice(2, 4), 16),
+      parseInt(clean.slice(4, 6), 16),
+    ];
+  }
+  return null;
 }
 
-// ─── Smart Parser ─────────────────────────────────────────────────────────────
-// Tries to read any common color format from an arbitrary string.
-// Returns [r, g, b] (0–255) or null.
-
-function smartParse(raw) {
-  const s = raw.trim();
-
-  // #rrggbb / #rgb / rrggbb / rgb (bare hex)
-  const hex = hexToRgb(s);
-  if (hex) return hex;
-
-  // rgb(r, g, b) or rgba(r, g, b, a)
-  const rgbFn = s.match(/rgba?\s*\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/i);
-  if (rgbFn) {
-    const [r, g, b] = [+rgbFn[1], +rgbFn[2], +rgbFn[3]];
-    if ([r, g, b].every((n) => n >= 0 && n <= 255))
-      return [r, g, b].map(Math.round);
+function parseRgb(str) {
+  const clean = str.replace(/rgba?\(|\)/gi, "").trim();
+  const parts = clean
+    .split(/[\s,]+/)
+    .filter((p) => p !== "")
+    .map(Number);
+  if (
+    parts.length === 3 &&
+    parts.every((n) => !isNaN(n) && n >= 0 && n <= 255)
+  ) {
+    return parts;
   }
+  return null;
+}
 
-  // hsl(h, s%, l%) or hsla(...)
-  const hslFn = s.match(
-    /hsla?\s*\(\s*([\d.]+)\s*,\s*([\d.]+)%?\s*,\s*([\d.]+)%?/i,
-  );
-  if (hslFn) return hslToRgb(+hslFn[1], +hslFn[2], +hslFn[3]);
-
-  // Plain "r, g, b" (no function wrapper)
-  const csvParts = s.split(",").map((p) => parseFloat(p.trim()));
-  if (csvParts.length === 3 && csvParts.every((n) => !isNaN(n))) {
-    // Heuristic: if all values ≤ 255 treat as RGB, else try HSL
-    if (csvParts.every((n) => n >= 0 && n <= 255))
-      return csvParts.map(Math.round);
-  }
-
-  // Plain "h°, s%, l%" — strip degree/percent symbols then split
-  const hslParts = s.replace(/[°%]/g, "").split(",").map(parseFloat);
-  if (hslParts.length === 3 && hslParts.every((n) => !isNaN(n))) {
-    const [h, sv, l] = hslParts;
-    if (h >= 0 && h <= 360 && sv >= 0 && sv <= 100 && l >= 0 && l <= 100) {
-      return hslToRgb(h, sv, l);
+function parseHsl(str) {
+  const clean = str.replace(/hsla?\(|\)|°|%/gi, "").trim();
+  const parts = clean
+    .split(/[\s,]+/)
+    .filter((p) => p !== "")
+    .map(Number);
+  if (parts.length === 3 && parts.every((n) => !isNaN(n))) {
+    const [h, s, l] = parts;
+    if (h >= 0 && h <= 360 && s >= 0 && s <= 100 && l >= 0 && l <= 100) {
+      return hslToRgb(h, s, l);
     }
   }
-
   return null;
+}
+
+function smartParse(str) {
+  return parseHex(str) || parseRgb(str) || parseHsl(str) || null;
 }
 
 // ─── Utils ────────────────────────────────────────────────────────────────────
@@ -169,6 +163,7 @@ function clamp(val, lo, hi) {
 let hue = 217;
 let saturation = 68;
 let brightness = 85;
+let currentRgb = [69, 123, 217];
 let isDragging = false;
 let isNightTheme = false;
 let activeInput = null;
@@ -229,18 +224,32 @@ function updateMarkerPosition() {
   marker.style.top = (1 - brightness / 100) * h + "px";
 }
 
-// ─── Color Update ─────────────────────────────────────────────────────────────
+// ─── Core Synchronization Engine ──────────────────────────────────────────────
 
-function updateFromHSV() {
-  const [r, g, b] = hsvToRgb(hue, saturation, brightness);
+/**
+ * Updates the global application state from an RGB color array.
+ * @param {number} r - Red (0-255)
+ * @param {number} g - Green (0-255)
+ * @param {number} b - Blue (0-255)
+ * @param {HTMLElement|null} sourceInput - The input element currently driving the change
+ */
+function syncFromRgb(r, g, b, sourceInput = null) {
+  currentRgb = [r, g, b];
+  [hue, saturation, brightness] = rgbToHsv(r, g, b);
+
+  hueSlider.value = hue;
+  drawCanvas();
+  updateMarkerPosition();
+
   const hex = rgbToHex(r, g, b);
-  const [h2, s2, l2] = rgbToHsl(r, g, b);
-
   swatchEl.style.backgroundColor = hex;
 
-  if (activeInput !== hexInput) hexInput.value = hex;
-  if (activeInput !== rgbInput) rgbInput.value = `${r}, ${g}, ${b}`;
-  if (activeInput !== hslInput) hslInput.value = `${h2}°, ${s2}%, ${l2}%`;
+  if (sourceInput !== hexInput) hexInput.value = hex;
+  if (sourceInput !== rgbInput) rgbInput.value = `${r}, ${g}, ${b}`;
+  if (sourceInput !== hslInput) {
+    const [h, s, l] = rgbToHsl(r, g, b);
+    hslInput.value = `${h}°, ${s}%, ${l}%`;
+  }
 
   const useDark = brightness > 60 && saturation < 55;
   marker.style.borderColor = useDark
@@ -249,17 +258,6 @@ function updateFromHSV() {
   marker.style.boxShadow = useDark
     ? "0 0 0 1.5px rgba(255,255,255,0.35), 0 2px 8px rgba(0,0,0,0.25)"
     : "0 0 0 1.5px rgba(0,0,0,0.22), 0 2px 8px rgba(0,0,0,0.5)";
-}
-
-// ─── Sync helpers ─────────────────────────────────────────────────────────────
-
-// Full sync from RGB: updates HSV state, redraws canvas, moves marker, refreshes all outputs.
-function syncFromRgb(r, g, b) {
-  [hue, saturation, brightness] = rgbToHsv(r, g, b);
-  hueSlider.value = hue;
-  drawCanvas();
-  updateMarkerPosition();
-  updateFromHSV();
 }
 
 // ─── Canvas Interaction ───────────────────────────────────────────────────────
@@ -285,7 +283,9 @@ function pickFromPos({ x, y }) {
   saturation = Math.round((x / canvas.clientWidth) * 100);
   brightness = Math.round((1 - y / canvas.clientHeight) * 100);
   updateMarkerPosition();
-  updateFromHSV();
+
+  const [r, g, b] = hsvToRgb(hue, saturation, brightness);
+  syncFromRgb(r, g, b, null);
 }
 
 canvas.addEventListener("mousedown", (e) => {
@@ -327,7 +327,7 @@ canvas.setAttribute("tabindex", "0");
 canvas.setAttribute("role", "slider");
 canvas.setAttribute(
   "aria-label",
-  "Color picker. Arrow keys adjust saturation and brightness. Hold Shift for larger steps.",
+  "Color picker. Arrow keys adjust saturation and brightness.",
 );
 
 canvas.addEventListener("keydown", (e) => {
@@ -352,7 +352,8 @@ canvas.addEventListener("keydown", (e) => {
   if (moved) {
     e.preventDefault();
     updateMarkerPosition();
-    updateFromHSV();
+    const [r, g, b] = hsvToRgb(hue, saturation, brightness);
+    syncFromRgb(r, g, b, null);
   }
 });
 
@@ -361,67 +362,53 @@ canvas.addEventListener("keydown", (e) => {
 hueSlider.addEventListener("input", () => {
   hue = parseInt(hueSlider.value);
   drawCanvas();
-  updateFromHSV();
+  const [r, g, b] = hsvToRgb(hue, saturation, brightness);
+  syncFromRgb(r, g, b, null);
 });
 
-// ─── Text Inputs ──────────────────────────────────────────────────────────────
+// ─── Text Inputs Logic & Input Validation ──────────────────────────────────────
 
 function setError(input, on) {
   input.classList.toggle("input-error", on);
 }
 
-// ── Paste handler (fires on all three inputs) ─────────────────────────────────
-// Intercepts the paste event, tries smartParse on the clipboard text immediately
-// (no debounce), and syncs everything if valid. This avoids the race condition
-// where blur fires before the 300 ms debounce resolves.
+// Live typing controllers (Debounced to give breathing room while user constructs values)
+const liveHex = debounce(() => {
+  const rgb = parseHex(hexInput.value);
+  setError(hexInput, !rgb && hexInput.value.trim().length > 0);
+  if (rgb) syncFromRgb(...rgb, hexInput);
+}, 250);
 
+const liveRgb = debounce(() => {
+  const rgb = parseRgb(rgbInput.value);
+  setError(rgbInput, !rgb && rgbInput.value.trim().length > 0);
+  if (rgb) syncFromRgb(...rgb, rgbInput);
+}, 250);
+
+const liveHsl = debounce(() => {
+  const rgb = parseHsl(hslInput.value);
+  setError(hslInput, !rgb && hslInput.value.trim().length > 0);
+  if (rgb) syncFromRgb(...rgb, hslInput);
+}, 250);
+
+// Global Paste Event Interceptor
 function onPaste(e) {
-  const text = (e.clipboardData || window.clipboardData).getData("text");
+  const text = (e.clipboardData || window.clipboardData).getData("text").trim();
   const rgb = smartParse(text);
 
   if (rgb) {
-    e.preventDefault(); // we'll handle the value ourselves
-    activeInput = null; // let updateFromHSV rewrite all inputs cleanly
+    e.preventDefault();
     setError(e.target, false);
-    syncFromRgb(...rgb); // immediate, no debounce
+    // Passing null ensures even the current field gets overwritten with the clean string format
+    syncFromRgb(...rgb, null);
   }
-  // If we can't parse it, let the browser paste normally;
-  // the debounced input handler will try again as the user edits.
 }
-
-hexInput.addEventListener("paste", onPaste);
-rgbInput.addEventListener("paste", onPaste);
-hslInput.addEventListener("paste", onPaste);
-
-// ── Live typing (debounced) ───────────────────────────────────────────────────
-// Runs only for manual keystrokes. Paste is handled separately above.
-
-const liveHex = debounce(() => {
-  const rgb = hexToRgb(hexInput.value.trim());
-  setError(hexInput, !rgb && hexInput.value.trim().length > 0);
-  if (rgb) syncFromRgb(...rgb);
-}, 300);
-
-const liveRgb = debounce(() => {
-  const parts = rgbInput.value.split(",").map((p) => parseInt(p.trim()));
-  const ok =
-    parts.length === 3 && parts.every((n) => !isNaN(n) && n >= 0 && n <= 255);
-  setError(rgbInput, !ok && rgbInput.value.trim().length > 0);
-  if (ok) syncFromRgb(...parts);
-}, 300);
-
-const liveHsl = debounce(() => {
-  const parts = hslInput.value
-    .replace(/[°%\s]/g, "")
-    .split(",")
-    .map(parseFloat);
-  const ok = parts.length === 3 && parts.every((n) => !isNaN(n));
-  setError(hslInput, !ok && hslInput.value.trim().length > 0);
-  if (ok) syncFromRgb(...hslToRgb(...parts));
-}, 300);
 
 [hexInput, rgbInput, hslInput].forEach((inp, i) => {
   const liveParser = [liveHex, liveRgb, liveHsl][i];
+
+  inp.addEventListener("paste", onPaste);
+  inp.addEventListener("input", liveParser);
 
   inp.addEventListener("focus", () => {
     activeInput = inp;
@@ -430,10 +417,8 @@ const liveHsl = debounce(() => {
   inp.addEventListener("blur", () => {
     activeInput = null;
     setError(inp, false);
-    updateFromHSV(); // reformat / normalise displayed value on exit
+    syncFromRgb(...currentRgb, null);
   });
-
-  inp.addEventListener("input", liveParser);
 });
 
 // ─── Copy to Clipboard ────────────────────────────────────────────────────────
@@ -484,9 +469,10 @@ themeToggle.addEventListener("click", () => {
 const ro = new ResizeObserver(debounce(resizeCanvas, 60));
 ro.observe(canvas.parentElement);
 
-// ─── Init ─────────────────────────────────────────────────────────────────────
+// ─── Initial Load ─────────────────────────────────────────────────────────────
 
 window.addEventListener("load", () => {
   resizeCanvas();
-  updateFromHSV();
+  const [r, g, b] = hsvToRgb(hue, saturation, brightness);
+  syncFromRgb(r, g, b, null);
 });
